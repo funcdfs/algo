@@ -9,9 +9,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
-// Color codes
+// Const Color codes
 const (
 	colorReset  = "\033[0m"
 	colorRed    = "\033[31m"
@@ -20,9 +21,10 @@ const (
 	colorYellow = "\033[33m"
 
 	// Status icons
-	iconPanic  = "🔥 PANIC"
-	iconWrong  = "❌ WRONG"
-	iconAccept = "✅ ACCEPT"
+	iconPanic   = "🔥 PANIC"
+	iconWrong   = "❌ WRONG"
+	iconAccept  = "✅ ACCEPT"
+	iconTimeout = "❌ TIMEOUT"
 
 	// Output formats
 	formatPanic = `%s:
@@ -83,6 +85,7 @@ func RunTest(t *testing.T, name string, input, want string, fn func()) {
 
 	// Create channel for synchronization and panic info
 	done := make(chan error)
+	timeout := time.After(20 * time.Second)
 
 	// Start goroutine to write input data
 	go func() {
@@ -112,14 +115,12 @@ func RunTest(t *testing.T, name string, input, want string, fn func()) {
 				lineNum := "unknown"
 				lines := strings.Split(stackTrace, "\n")
 				for _, line := range lines {
-					// Look for main.go call line
 					if strings.Contains(line, "/main.go:") {
 						if start := strings.LastIndex(line, "/main.go:"); start != -1 {
 							start += len("/main.go:")
 							if end := strings.Index(line[start:], " "); end != -1 {
 								lineNum = line[start : start+end]
 							} else {
-								// Line number might be at the end if no space
 								lineNum = line[start:]
 							}
 							break
@@ -127,7 +128,6 @@ func RunTest(t *testing.T, name string, input, want string, fn func()) {
 					}
 				}
 
-				// Format error message
 				errMsg := fmt.Sprintf("Error: %v", r)
 				formattedInput := formatInput(input)
 
@@ -145,15 +145,22 @@ func RunTest(t *testing.T, name string, input, want string, fn func()) {
 		fn()
 	}()
 
-	// Wait for test function to complete and check for panic
-	if err := <-done; err != nil {
-		t.Error(err)
+	// Wait for test function to complete or timeout
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		wg.Wait()
+		// Compare output results
+		compareOutput(t, name, output.String(), want, input)
+	case <-timeout:
+		t.Errorf("%s\nInput:\n%s%s%s",
+			iconTimeout,
+			colorBlue, formatInput(input), colorReset)
 		return
 	}
-	wg.Wait()
-
-	// Compare output results
-	compareOutput(t, name, output.String(), want, input)
 }
 
 // formatInput formats input data with line numbers
