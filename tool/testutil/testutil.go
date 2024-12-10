@@ -85,7 +85,7 @@ func RunTest(t *testing.T, name string, input, want string, fn func()) {
 
 	// Create channel for synchronization and panic info
 	done := make(chan error)
-	timeout := time.After(20 * time.Second)
+	timeout := time.After(5 * time.Second)
 
 	// Start goroutine to write input data
 	go func() {
