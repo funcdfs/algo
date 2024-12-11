@@ -3,9 +3,22 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"fmt"
 	"os"
+	"slices"
 )
+
+func main() {
+	_in = bufio.NewReader(os.Stdin)
+	_out = bufio.NewWriter(os.Stdout)
+	defer _out.Flush()
+	testCaseCnt := input[int]()
+	//testCaseCnt := 1
+	for i := 0; i < testCaseCnt; i++ {
+		solve(i + 1)
+	}
+}
 
 var _in, _out = new(bufio.Reader), new(bufio.Writer)
 
@@ -18,12 +31,6 @@ func _github_funcdfs[T any](sep, end string, arr ...T) {
 			fmt.Fprint(_out, sep)
 		}
 	}
-}
-func main() {
-	_in = bufio.NewReader(os.Stdin)
-	_out = bufio.NewWriter(os.Stdout)
-	defer _out.Flush()
-	solve()
 }
 func input[T any]() T { var value T; fmt.Fscan(_in, &value); return value }
 func inputSlice[T any](size int) []T {
@@ -38,15 +45,37 @@ func println[T any](arr ...T) { _github_funcdfs(" ", "\n", arr...) }
 
 //</editor-fold>
 
+// link: https://codeforces.com/contest/1722/problem/A
+// time: 2024-12-11 12:03:59 https://github.com/funcdfs
+
 // ----------------------------- /* Start of useful functions */ -----------------------------
 
-func solve() {
+func solve(_case int) {
 
 	n := input[int]()
-	a := inputSlice[int](n)
-	fix := []int{4, 8, 15, 16, 23, 42}
+	s := input[[]byte]()
+	if len(s) != n {
+		panic("assert failed, fix me")
+	}
+	slices.SortFunc(s, func(_x1, _x2 byte) int {
+		return cmp.Compare(_x2, _x1)
+	})
+	tmp := []byte("Timur")
+	slices.SortFunc(tmp, func(_x1, _x2 byte) int {
+		return cmp.Compare(_x2, _x1)
+	})
+	check := func() bool {
+		if slices.Equal(s, tmp) == false {
+			return false
+		}
+		return true
+	}
+	if check() == true {
+		println("YES")
+	} else {
+		println("NO")
+	}
 
-	println(fix...)
 }
 
 // ----------------------------- /* End of useful functions */ -------------------------------

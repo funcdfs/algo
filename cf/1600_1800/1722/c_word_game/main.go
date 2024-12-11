@@ -7,6 +7,17 @@ import (
 	"os"
 )
 
+func main() {
+	_in = bufio.NewReader(os.Stdin)
+	_out = bufio.NewWriter(os.Stdout)
+	defer _out.Flush()
+	testCaseCnt := input[int]()
+	//testCaseCnt := 1
+	for i := 0; i < testCaseCnt; i++ {
+		solve(i + 1)
+	}
+}
+
 var _in, _out = new(bufio.Reader), new(bufio.Writer)
 
 func _github_funcdfs[T any](sep, end string, arr ...T) {
@@ -18,12 +29,6 @@ func _github_funcdfs[T any](sep, end string, arr ...T) {
 			fmt.Fprint(_out, sep)
 		}
 	}
-}
-func main() {
-	_in = bufio.NewReader(os.Stdin)
-	_out = bufio.NewWriter(os.Stdout)
-	defer _out.Flush()
-	solve()
 }
 func input[T any]() T { var value T; fmt.Fscan(_in, &value); return value }
 func inputSlice[T any](size int) []T {
@@ -38,15 +43,46 @@ func println[T any](arr ...T) { _github_funcdfs(" ", "\n", arr...) }
 
 //</editor-fold>
 
+// link: https://codeforces.com/contest/1722/problem/C
+// time: 2024-12-11 12:14:14 https://github.com/funcdfs
+
 // ----------------------------- /* Start of useful functions */ -----------------------------
 
-func solve() {
+func solve(_case int) {
 
 	n := input[int]()
-	a := inputSlice[int](n)
-	fix := []int{4, 8, 15, 16, 23, 42}
-
-	println(fix...)
+	a := make([][]string, 3)
+	for i := 0; i < 3; i++ {
+		a[i] = make([]string, n)
+		for idx := range a[i] {
+			a[i][idx] = string(input[[]byte]())
+		}
+	}
+	info := make(map[string][]int)
+	for i := 0; i < 3; i++ {
+		for j := 0; j < n; j++ {
+			info[a[i][j]] = append(info[a[i][j]], i+1)
+		}
+	}
+	// output
+	for i := 0; i < 3; i++ {
+		cnt := 0
+		for j := 0; j < n; j++ {
+			x := len(info[a[i][j]])
+			if x == 3 {
+				cnt += 0
+			} else if x == 2 {
+				cnt += 1
+			} else if x == 1 {
+				cnt += 3
+			}
+		}
+		print(cnt)
+		if i != 3-1 {
+			print(" ")
+		}
+	}
+	println("")
 }
 
 // ----------------------------- /* End of useful functions */ -------------------------------
