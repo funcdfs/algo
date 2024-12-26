@@ -1,26 +1,16 @@
-package template
+// link: https://atcoder.jp/contests/abc347/tasks/abc347_a
+// time: 2024-12-26 16:44:00 https://github.com/funcdfs
 
-const MultiTestTemplate = `// <editor-fold desc="useless function"
+// <editor-fold desc="useless function"
 package main
 
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 )
 
-func main() {
-	_in = bufio.NewReader(os.Stdin)
-	_out = bufio.NewWriter(os.Stdout)
-	defer _out.Flush()
-	log.SetPrefix("[dbg:] ")
-	log.SetFlags(log.Lshortfile)
-	testCaseCnt := input[int]()
-	//testCaseCnt := 1
-	for i := 0; i < testCaseCnt; i++ {
-		solve(i + 1)
-	}
-}
 var _in, _out = new(bufio.Reader), new(bufio.Writer)
 
 func _github_funcdfs[T any](sep, end string, arr ...T) {
@@ -33,6 +23,12 @@ func _github_funcdfs[T any](sep, end string, arr ...T) {
 		}
 	}
 }
+func main() {
+	_in = bufio.NewReader(os.Stdin)
+	_out = bufio.NewWriter(os.Stdout)
+	defer _out.Flush()
+	solve()
+}
 func input[T any]() T { var value T; fmt.Fscan(_in, &value); return value }
 func inputSlice[T any](size int) []T {
 	data := make([]T, size)
@@ -43,18 +39,23 @@ func inputSlice[T any](size int) []T {
 }
 func print[T any](arr ...T)   { _github_funcdfs("", "", arr...) }
 func println[T any](arr ...T) { _github_funcdfs(" ", "\n", arr...) }
-//</editor-fold>
 
-// link: {{.Problem.URL}}
-// time: {{.CurrentTime}} https://github.com/funcdfs
+//</editor-fold>
 
 // ----------------------------- /* Start of useful functions */ -----------------------------
 
-func solve(_case int) {
+func solve() {
+	n, k := input[int](), input[int]()
+	a := inputSlice[int](n)
 
-	// TODO: Add solution logic here
-	
+	log.Println(n, k, a)
+	for i := range a {
+		if a[i]%k == 0 {
+			print(a[i] / k)
+			print(" ")
+		}
+	}
+	println("")
 }
 
 // ----------------------------- /* End of useful functions */ -------------------------------
-`
