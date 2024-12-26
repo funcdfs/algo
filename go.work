@@ -1,0 +1,14 @@
+go 1.23.3
+
+replace (
+	 github.com/funcdfs/algo/tool/io  v0.0.0 => ./tool/io
+	 github.com/funcdfs/algo/tool/template v0.0.0 => ./tool/template
+	 github.com/funcdfs/algo/tool/testutil v0.0.0 => ./tool/testutil
+)
+
+use (
+	./tool/io
+	./tool/template
+	./tool/testutil
+	.
+)
