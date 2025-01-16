@@ -705,9 +705,15 @@ func formatLog(problem Problem, dirPath string) string {
 		displayValue := value
 		if label == "URL" {
 			displayValue = truncateURL(value, maxValueLen)
+		} else if len(displayValue) > maxValueLen {
+			displayValue = displayValue[:maxValueLen]
 		}
 
+		// Ensure spacing is never negative
 		spacing := maxWidth - len(label) - len(displayValue) - padding*2 - 4
+		if spacing < 0 {
+			spacing = 0
+		}
 		b.WriteString(strings.Repeat(" ", spacing))
 
 		b.WriteString(valueColor)
