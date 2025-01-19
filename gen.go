@@ -813,9 +813,8 @@ func extractProblemInfo(url string) (platform, contestID, problemID string) {
 		for i, part := range parts {
 			if part == "contest" && i+1 < len(parts) {
 				contestID = parts[i+1]
-			}
-			if part == "problem" && i+1 < len(parts) {
-				problemID = parts[i+1]
+			} else if part == "problemset" && i+2 < len(parts) {
+				contestID = parts[i+2]
 			}
 		}
 
