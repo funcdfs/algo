@@ -7,7 +7,7 @@ import (
 
 // Contest: Codeforces - CodeTON Round 4 (Div. 1 + Div. 2, Rated, Prizes!) B. Candies
 // URL: https://codeforces.com/contest/1810/problem/B
-// Time: 2025-01-19 16:05:16
+// Time: 2025-01-20 16:27:36
 
 func TestSolution(t *testing.T) {
 	tests := []struct {
@@ -15,9 +15,14 @@ func TestSolution(t *testing.T) {
 		input string
 		want  string
 	}{
-		
+
 		{
 			name:  "case1",
+			input: "4\n2\n3\n7\n17\n",
+			want:  "-1\n1\n2\n2\n2 2\n4\n2 1 1 1\n",
+		},
+		{
+			name:  "testcase1",
 			input: "4\n2\n3\n7\n17\n",
 			want:  "-1\n1\n2\n2\n2 2\n4\n2 1 1 1\n",
 		},
