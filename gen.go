@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 	"syscall"
 	texttemplate "text/template"
 	"time"
+	"unicode"
 
 	"github.com/funcdfs/algo/tool/template"
 	"github.com/funcdfs/algo/tool/testutil"
@@ -90,13 +93,18 @@ const (
 
 	// ANSI color codes for terminal output
 	colorReset   = "\033[0m"
-	colorRed     = "\033[31m" // For error messages
-	colorGreen   = "\033[32m" // For success messages
-	colorYellow  = "\033[33m" // For warnings and borders
-	colorBlue    = "\033[34m" // For links and progress indicators
-	colorMagenta = "\033[35m" // For numbers and problem IDs
-	colorCyan    = "\033[36m" // For titles and paths
-	colorGray    = "\033[90m" // For labels
+	colorRed     = "\033[38;2;161;43;43m"
+	colorGreen   = "\033[38;2;41;148;75m"
+	colorYellow  = "\033[38;2;163;166;124m"
+	colorBlue    = "\033[38;2;74;121;217m"
+	colorMagenta = "\033[38;2;152;124;166m"
+	colorCyan    = "\033[38;2;101;194;167m"
+	colorGray    = "\033[38;2;111;111;111m"
+
+	// Custom hex color examples (requires terminal with true color support):
+	// For hex color #00FF00 (bright green): "\033[38;2;0;255;0m"
+	// For hex color #FF5733 (coral): "\033[38;2;255;87;51m"
+	// Format: \033[38;2;R;G;Bm where R, G, B are decimal RGB values (0-255)
 
 	// Network settings
 	port = 10043 // Default listening port for Competitive Companion
@@ -108,7 +116,88 @@ var (
 	ErrCreateDirectory = errors.New("failed to create directory")
 	ErrGenerateFile    = errors.New("failed to generate file")
 	ErrInvalidArgument = errors.New("invalid command line argument")
+
+	// Debug mode flag
+	debugMode = false
 )
+
+// enableDebugMode turns on debugging features
+func enableDebugMode() {
+	debugMode = true
+	fmt.Printf("\n%s[DEBUG MODE ENABLED]%s\n", colorCyan, colorReset)
+	fmt.Printf("%s[*]%s Listening for problem data on port %s%d%s...\n",
+		colorGreen, colorReset, colorMagenta, colorReset)
+	fmt.Printf("%s[*]%s JSON and struct data will be printed to console\n\n",
+		colorGreen, colorReset)
+}
+
+// debugPrintProblem prints problem data in debug mode
+func debugPrintProblem(problem Problem) {
+	if !debugMode {
+		return
+	}
+
+	// Print problem details in a formatted way
+	fmt.Printf("\n%s========== RECEIVED PROBLEM DATA ==========%s\n", colorYellow, colorReset)
+
+	// Convert to JSON for display
+	jsonData, err := json.MarshalIndent(problem, "", "  ")
+	if err != nil {
+		fmt.Printf("%s[ERROR]%s Failed to marshal JSON: %v\n", colorRed, colorReset, err)
+	} else {
+		fmt.Printf("%s[JSON]%s\n%s\n", colorMagenta, colorReset, string(jsonData))
+	}
+
+	// Print processed path
+	platform, contestID, problemID := extractProblemInfo(problem.URL)
+	dirPath := calculateDirPath(problem.URL, problem.Name)
+
+	fmt.Printf("\n%s[EXTRACTED INFO]%s\n", colorMagenta, colorReset)
+	fmt.Printf("Platform: %s%s%s\n", colorCyan, platform, colorReset)
+	fmt.Printf("Contest ID: %s%s%s\n", colorYellow, contestID, colorReset)
+	fmt.Printf("Problem ID: %s%s%s\n", colorGreen, problemID, colorReset)
+	fmt.Printf("Directory Path: %s%s%s\n", colorBlue, dirPath, colorReset)
+
+	// Determine more info based on the platform
+	switch platform {
+	case "codeforces":
+		if contestID != "" {
+			fmt.Printf("Contest URL: %shttps://codeforces.com/contest/%s%s\n", colorBlue, contestID, colorReset)
+		}
+		if problemID != "" {
+			fmt.Printf("Problem URL: %shttps://codeforces.com/contest/%s/problem/%s%s\n",
+				colorBlue, contestID, problemID, colorReset)
+		}
+	case "atcoder":
+		if contestID != "" {
+			fmt.Printf("Contest URL: %shttps://atcoder.jp/contests/%s%s\n", colorBlue, contestID, colorReset)
+		}
+		if problemID != "" {
+			fmt.Printf("Problem URL: %shttps://atcoder.jp/contests/%s/tasks/%s%s\n",
+				colorBlue, contestID, problemID, colorReset)
+		}
+	case "acwing":
+		if problemID != "" {
+			fmt.Printf("Problem URL: %shttps://www.acwing.com/problem/content/%s/%s\n",
+				colorBlue, problemID, colorReset)
+		}
+	case "luogu":
+		if problemID != "" {
+			fmt.Printf("Problem URL: %shttps://www.luogu.com.cn/problem/%s%s\n",
+				colorBlue, problemID, colorReset)
+		}
+	}
+
+	// Display problem metadata
+	fmt.Printf("\n%s[PROBLEM METADATA]%s\n", colorMagenta, colorReset)
+	fmt.Printf("Name: %s%s%s\n", colorCyan, problem.Name, colorReset)
+	fmt.Printf("Group: %s%s%s\n", colorYellow, problem.Group, colorReset)
+	fmt.Printf("Time Limit: %s%d ms%s\n", colorGreen, problem.TimeLimit, colorReset)
+	fmt.Printf("Memory Limit: %s%d MB%s\n", colorGreen, problem.MemoryLimit, colorReset)
+	fmt.Printf("Test Cases: %s%d%s\n", colorMagenta, len(problem.Tests), colorReset)
+
+	fmt.Printf("\n%s==========================================%s\n\n", colorYellow, colorReset)
+}
 
 func main() {
 	config := NewConfig()
@@ -315,6 +404,12 @@ func parseArgs(config *Config) error {
 	case arg == "-h" || arg == "--help": // Display help information
 		printUsage()
 		os.Exit(0)
+	case arg == "debug": // Enable debug mode
+		config.TemplateType = templateTypeSingleTest
+		config.ShouldListen = true
+		// Set global debug flag
+		enableDebugMode()
+		return nil
 	case strings.HasPrefix(arg, "https://leetcode.cn/contest/"): // Handle LeetCode contest URL
 		config.TemplateType = templateTypeVoid
 		config.Problem = newLeetCodeProblem(arg)
@@ -366,6 +461,7 @@ Commands:
     codeforces, cf, c     Use multitest template
     atcoder, atc, a       Use singletest template 
     test, t               Generate test file
+    debug                 Start in debug mode (prints JSON data)
     <leetcode_url>        Generate LeetCode contest files
     -h, --help            Show this help message
 
@@ -427,8 +523,10 @@ func newVoidProblem() Problem {
 }
 
 func runServer(config *Config) error {
-	fmt.Printf("\n%s[*]%s Starting with [%s] template...\n", colorCyan, colorReset, config.TemplateType)
-	fmt.Printf("%s[+]%s Listening on port %s%d%s...\n\n", colorGreen, colorReset, colorMagenta, config.Port, colorReset)
+	fmt.Printf("\n%s[*]%s Starting with %s[%s\033[1m%s%s\033[22m%s]%s template...\n",
+		colorCyan, colorReset, colorGreen, colorGreen, config.TemplateType, colorReset, colorGreen, colorReset)
+	fmt.Printf("%s[+]%s Listening on port %s\033[1m%d%s\033[22m...\n\n",
+		colorGreen, colorReset, colorMagenta, config.Port, colorReset)
 
 	// Create buffered channel for OS signals
 	done := make(chan os.Signal, 1)
@@ -465,6 +563,24 @@ func newProblemServer(problemChan chan<- Problem) http.Handler {
 			http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		// Debug mode: Read and log the raw JSON
+		if debugMode {
+			// Read the body first for logging
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "Failed to read request body", http.StatusBadRequest)
+				return
+			}
+
+			// Log the raw JSON
+			fmt.Printf("\n%s[RAW JSON RECEIVED]%s\n%s\n\n",
+				colorCyan, colorReset, string(body))
+
+			// Create a new reader from the body for json.Decoder
+			r.Body = io.NopCloser(bytes.NewBuffer(body))
+		}
+
 		var problem Problem
 		if err := json.NewDecoder(r.Body).Decode(&problem); err != nil {
 			http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
@@ -479,11 +595,14 @@ func newProblemServer(problemChan chan<- Problem) http.Handler {
 // handleProblems processes incoming problems from the channel
 func handleProblems(templateType string, problemChan <-chan Problem) {
 	for problem := range problemChan {
+		// Print debug information if debug mode is enabled
+		debugPrintProblem(problem)
+
 		if err := generateProblemFile(templateType, problem); err != nil {
 			log.Printf("Failed to generate problem files: %v", err)
 			continue
 		}
-		fmt.Println("\nWaiting for next problem...")
+		fmt.Printf("\n%s[=]%s %sWaiting for next problem...%s\n", colorBlue, colorReset, colorGray, colorReset)
 	}
 }
 
@@ -494,8 +613,7 @@ func generateProblemFile(templateType string, problem Problem) error {
 		baseDir := filepath.Join(leetcodeDir, problem.Group)
 		problems := []string{"a", "b", "c", "d"}
 
-		fmt.Printf("\n%s[*]%s Initializing LeetCode contest...\n", colorCyan, colorReset)
-		fmt.Printf("%s[+]%s Target: %s%s%s\n", colorGreen, colorReset, colorYellow, baseDir, colorReset)
+		fmt.Printf("\n%s[*]%s Target: %s\033[1m%s%s\033[22m\n", colorCyan, colorReset, colorGreen, baseDir, colorReset)
 
 		for _, p := range problems {
 			dirPath := filepath.Join(baseDir, p)
@@ -510,18 +628,17 @@ func generateProblemFile(templateType string, problem Problem) error {
 			fmt.Printf("%s[✓]%s\n", colorGreen, colorReset)
 		}
 
-		fmt.Printf("%s[*]%s Generation completed%s\n\n", colorCyan, colorGreen, colorReset)
+		fmt.Printf("%s[*]%s %sGeneration completed%s\n\n", colorCyan, colorReset, colorGreen, colorReset)
 		return nil
 	} else {
 		// Handle other problem types
 		dirPath := calculateDirPath(problem.URL, problem.Name)
-		fmt.Printf("\n%s[*]%s Generating problem files...\n", colorCyan, colorReset)
-		fmt.Printf("%s[+]%s Target: %s%s%s\n", colorGreen, colorReset, colorYellow, dirPath, colorReset)
+		fmt.Printf("\n%s[*]%s Target: %s\033[1m%s%s\033[22m\n", colorCyan, colorReset, colorGreen, dirPath, colorReset)
 		if err := generateProblemInDir(templateType, dirPath, problem, true); err != nil {
 			fmt.Printf("%s[✗]%s Failed to generate files\n", colorRed, colorReset)
 			return fmt.Errorf("failed to generate problem files: %v", err)
 		}
-		fmt.Printf("%s[✓]%s Files generated successfully\n", colorGreen, colorReset)
+		fmt.Printf("%s[✓]%s %sFiles generated successfully%s\n", colorGreen, colorReset, colorGreen, colorReset)
 		return nil
 	}
 }
@@ -632,9 +749,27 @@ func formatLog(problem Problem, dirPath string) string {
 		boldOff = "\033[22m"
 	)
 
+	// Helper function to count display width of a string (Chinese characters count as 2)
+	runeDisplayWidth := func(r rune) int {
+		if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
+			unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r) {
+			return 2
+		}
+		return 1
+	}
+
+	// Calculate display width of string considering Chinese characters
+	stringDisplayWidth := func(s string) int {
+		width := 0
+		for _, r := range s {
+			width += runeDisplayWidth(r)
+		}
+		return width
+	}
+
 	// Truncate long URL with ellipsis
 	truncateURL := func(url string, maxLen int) string {
-		if len(url) <= maxLen {
+		if stringDisplayWidth(url) <= maxLen {
 			return url
 		}
 
@@ -650,7 +785,17 @@ func formatLog(problem Problem, dirPath string) string {
 
 		if lastKeywordPos == -1 {
 			// If no keyword found, use simple truncation
-			return url[:maxLen-3] + "..."
+			var truncated string
+			runWidth := 0
+			for _, r := range url {
+				w := runeDisplayWidth(r)
+				if runWidth+w > maxLen-3 {
+					break
+				}
+				truncated += string(r)
+				runWidth += w
+			}
+			return truncated + "..."
 		}
 
 		// Keep the domain and the last important part
@@ -670,12 +815,19 @@ func formatLog(problem Problem, dirPath string) string {
 		importantPart := url[lastKeywordPos:]
 
 		// Calculate available space
-		availSpace := maxLen - len(domain) - 3 // 3 for "..."
-		if availSpace < len(importantPart) {
-			importantPart = importantPart[:availSpace]
+		availSpace := maxLen - stringDisplayWidth(domain) - 3 // 3 for "..."
+		var truncatedImportant string
+		runWidth := 0
+		for _, r := range importantPart {
+			w := runeDisplayWidth(r)
+			if runWidth+w > availSpace {
+				break
+			}
+			truncatedImportant += string(r)
+			runWidth += w
 		}
 
-		return domain + "..." + importantPart
+		return domain + "..." + truncatedImportant
 	}
 
 	// Create horizontal separator line
@@ -698,21 +850,37 @@ func formatLog(problem Problem, dirPath string) string {
 		b.WriteString(vertical)
 		b.WriteString(colorReset)
 		b.WriteString(" ")
+
+		// Make label brighter and bolder
+		b.WriteString("\033[1m")
 		b.WriteString(colorCyan)
 		b.WriteString(label)
+		b.WriteString("\033[22m")
 		b.WriteString(colorReset)
 
 		// Calculate maximum value length based on available space
-		maxValueLen := maxWidth - len(label) - padding*2 - 4
+		maxValueLen := maxWidth - stringDisplayWidth(label) - padding*2 - 4
 		displayValue := value
 		if label == "URL" {
 			displayValue = truncateURL(value, maxValueLen)
-		} else if len(displayValue) > maxValueLen {
-			displayValue = displayValue[:maxValueLen]
+		} else {
+			// Truncate if needed based on display width
+			var truncated string
+			runWidth := 0
+			for _, r := range displayValue {
+				w := runeDisplayWidth(r)
+				if runWidth+w > maxValueLen {
+					break
+				}
+				truncated += string(r)
+				runWidth += w
+			}
+			displayValue = truncated
 		}
 
 		// Ensure spacing is never negative
-		spacing := maxWidth - len(label) - len(displayValue) - padding*2 - 4
+		displayWidth := stringDisplayWidth(displayValue)
+		spacing := maxWidth - stringDisplayWidth(label) - displayWidth - padding*2 - 4
 		if spacing < 0 {
 			spacing = 0
 		}
@@ -735,43 +903,11 @@ func formatLog(problem Problem, dirPath string) string {
 		b.WriteString("\n")
 	}
 
-	// Write centered text with optional test cases
-	writeHeader := func() {
-		b.WriteString(strings.Repeat(" ", padding))
-		b.WriteString(colorYellow)
-		b.WriteString(vertical)
-		b.WriteString(colorReset)
-		b.WriteString(" ")
-
-		title := "PROBLEM DETAILS"
-		if len(problem.Tests) > 0 {
-			title = fmt.Sprintf("%s  [TEST CASES: %d]", title, len(problem.Tests))
-		}
-
-		textLen := len(title)
-		leftPadding := (maxWidth - textLen - padding*2 - 4) / 2
-		rightPadding := maxWidth - textLen - padding*2 - 4 - leftPadding
-
-		b.WriteString(strings.Repeat(" ", leftPadding))
-		b.WriteString(colorMagenta)
-		b.WriteString(title)
-		b.WriteString(colorReset)
-		b.WriteString(strings.Repeat(" ", rightPadding))
-
-		b.WriteString(" ")
-		b.WriteString(colorYellow)
-		b.WriteString(vertical)
-		b.WriteString(colorReset)
-		b.WriteString("\n")
-	}
-
 	// Format timestamp
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-	// Build the log message
+	// Build the log message - removed header section with PROBLEM DETAILS
 	createLine(true)
-	writeHeader()
-	createLine(false)
 	writeField("URL", problem.URL, colorBlue, false)
 	writeField("NAME", problem.Name, colorGreen, false)
 	writeField("PATH", dirPath, colorCyan, true) // PATH is bold
@@ -790,9 +926,10 @@ func formatLog(problem Problem, dirPath string) string {
 }
 
 // cleanInputName sanitizes input strings for use in file/directory names
+// Preserves Chinese characters while cleaning up other characters
 func cleanInputName(str string) string {
-	// Replace non-Chinese and non-Latin characters with underscores
-	re := regexp.MustCompile(`[^\p{Han}\p{L}]+`)
+	// Replace spaces and special characters with underscores, but preserve Chinese characters
+	re := regexp.MustCompile(`[^\p{Han}\p{Latin}0-9]+`)
 	str = re.ReplaceAllString(str, "_")
 
 	// Replace three or more consecutive underscores with two
@@ -836,9 +973,21 @@ func extractProblemInfo(url string) (platform, contestID, problemID string) {
 
 	case strings.Contains(url, "acwing.com"):
 		platform = "acwing"
+		// Extract problem ID from URL like https://www.acwing.com/problem/content/1/
+		for i, part := range parts {
+			if part == "problem" && i+2 < len(parts) && parts[i+1] == "content" {
+				problemID = strings.TrimSuffix(parts[i+2], "/")
+			}
+		}
 
 	case strings.Contains(url, "luogu.com.cn"):
 		platform = "luogu"
+		// Extract problem ID from URL like https://www.luogu.com.cn/problem/B2002
+		for i, part := range parts {
+			if part == "problem" && i+1 < len(parts) {
+				problemID = parts[i+1]
+			}
+		}
 
 	case strings.Contains(url, "nowcoder.com"):
 		platform = "nowcoder"
@@ -875,7 +1024,21 @@ func calculateDirPath(url string, problemName string) string {
 		problemPathStr = filepath.Join(atcoderDir, strings.ToLower(contestID), fmt.Sprintf("%s", cleanName))
 
 	case "acwing":
-		problemPathStr = filepath.Join(othersDir, "acwing", cleanName)
+		// Create a dedicated acwing directory with problem ID as prefix
+		if problemID == "" {
+			problemPathStr = filepath.Join(acwingDir, cleanName)
+		} else {
+			problemPathStr = filepath.Join(acwingDir, fmt.Sprintf("%s_%s", problemID, cleanName))
+		}
+
+	case "luogu":
+		// Create a dedicated luogu directory with problem ID as prefix
+		// luogu's name already contains the problemID infomation so, the process is same
+		if problemID == "" {
+			problemPathStr = filepath.Join(luoguDir, cleanName)
+		} else {
+			problemPathStr = filepath.Join(luoguDir, fmt.Sprintf("%s", cleanName))
+		}
 
 	case "vjudge":
 		problemPathStr = filepath.Join(othersDir, "vjudge", cleanName)
@@ -896,39 +1059,5 @@ func calculateDirPath(url string, problemName string) string {
 		}
 	}
 
-	return normalizeLastPathComponent(problemPathStr)
-}
-
-// normalizeLastPathComponent standardizes the last component of a file path
-func normalizeLastPathComponent(pathStr string) string {
-	// Extract the last path component (filename)
-	lastComponent := filepath.Base(pathStr)
-
-	// Step 1: Replace all non-word characters with underscores
-	reInvalidChars := regexp.MustCompile(`\W+`)
-	normalized := reInvalidChars.ReplaceAllString(lastComponent, "_")
-
-	// Step 2: Replace consecutive underscores with a single underscore
-	reConsecutiveUnderscores := regexp.MustCompile(`_+`)
-	normalized = reConsecutiveUnderscores.ReplaceAllString(normalized, "_")
-
-	// Step 3: Remove leading and trailing underscores
-	normalized = strings.Trim(normalized, "_")
-
-	// Step 4: Remove redundant prefix repetitions (e.g., a_a_name -> a_name)
-	parts := strings.Split(normalized, "_")
-	var filteredParts []string
-	for i, part := range parts {
-		if i == 0 || part != parts[i-1] {
-			filteredParts = append(filteredParts, part)
-		}
-	}
-	normalized = strings.Join(filteredParts, "_")
-
-	// Step 5: Recombine with the directory path
-	dir := filepath.Dir(pathStr)
-	if dir == "." {
-		return normalized
-	}
-	return filepath.Join(dir, normalized)
+	return problemPathStr
 }
