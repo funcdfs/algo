@@ -1055,7 +1055,7 @@ func calculateDirPath(url string, problemName string) string {
 				problemPathStr = filepath.Join(voidDir, fmt.Sprintf("%s_%s", timestamp, cleanName))
 			}
 		} else {
-			problemPathStr = filepath.Join(othersDir, "all", cleanName)
+			problemPathStr = filepath.Join(othersDir, cleanName)
 		}
 	}
 
