@@ -77,6 +77,8 @@ const (
 	leetcodeDir   = "leetcode"    // Directory for LeetCode problems
 	codeforcesDir = "cf"          // Directory for Codeforces problems
 	atcoderDir    = "atcoder"     // Directory for AtCoder problems
+	acwingDir     = "acwing"      // Directory for Acwing problems
+	luoguDir      = "luogu"       // Directory for Luogu problems
 	othersDir     = "others"      // Directory for problems from other platforms
 	testDir       = "test_folder" // Directory for test files
 
@@ -367,7 +369,7 @@ Commands:
     <leetcode_url>        Generate LeetCode contest files
     -h, --help            Show this help message
 
-NOTE: All commands except test and <leetcode_url> will start a listener server
+NOTE: All commands except test and URL-based commands will start a listener server
 `)
 }
 
